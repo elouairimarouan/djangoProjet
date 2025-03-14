@@ -120,16 +120,30 @@ WSGI_APPLICATION = 'my_project.wsgi.application'
 #     }
 # }
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'django',
+#         'USER': 'root',
+#         'PASSWORD': '',
+#         'HOST': 'localhost',
+#         'PORT': '3306',
+#     }
+# }
+
+import os
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'django',
-        'USER': 'root',
-        'PASSWORD': '',
-        'HOST': 'localhost',
-        'PORT': '3306',
+        'NAME': os.getenv('MYSQLDATABASE'),
+        'USER': os.getenv('MYSQLUSER'),
+        'PASSWORD': os.getenv('MYSQLPASSWORD'),
+        'HOST': os.getenv('MYSQLHOST'),
+        'PORT': os.getenv('MYSQLPORT', '3306'),
     }
 }
+
 # smtp
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'  # Use SMTP to send emails
 EMAIL_HOST = 'smtp.gmail.com'
