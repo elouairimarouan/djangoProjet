@@ -30,8 +30,22 @@ DEBUG = True
 ALLOWED_HOSTS = [ 
     'localhost',  # Allow localhost for local development
     '127.0.0.1',  # Allow local IP for development
-    '618b-196-206-82-193.ngrok-free.app'
+    '64d7-102-96-105-182.ngrok-free.app',
+    '87e4-196-64-172-50.ngrok-free.app',
+    
 ]
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),  
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=365),  
+    'ROTATE_REFRESH_TOKENS': False,  
+    'BLACKLIST_AFTER_ROTATION': False,  
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'SIGNING_KEY': 'signing_key',  # Customize the signing key (default uses Django's SECRET_KEY)
+
+}
 
 
 # Application definition
@@ -113,39 +127,39 @@ WSGI_APPLICATION = 'my_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': 'django',
-#         'USER': 'root',
-#         'PASSWORD': '',
-#         'HOST': 'localhost',
-#         'PORT': '3306',
-#     }
-# }
-
-import os
-
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.getenv('django'),  # Correct environment variable for DB name
-        'USER': os.getenv('root'),      # Correct environment variable for DB username
-        'PASSWORD': os.getenv(''),  # Correct environment variable for DB password
-        'HOST': os.getenv('MYSQLHOST', 'localhost'),  # Correct environment variable for DB host
-        'PORT': os.getenv('MYSQLPORT', '3306'),  # Default MySQL port if not set
+        'NAME': 'django',
+        'USER': 'root',
+        'PASSWORD': '',
+        'HOST': 'localhost',
+        'PORT': '3306',
     }
 }
 
-# smtp
+# import os
+
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': os.getenv('django'),  # Correct environment variable for DB name
+#         'USER': os.getenv('root'),      # Correct environment variable for DB username
+#         'PASSWORD': os.getenv(''),  # Correct environment variable for DB password
+#         'HOST': os.getenv('MYSQLHOST', 'localhost'),  # Correct environment variable for DB host
+#         'PORT': os.getenv('MYSQLPORT', '3306'),  # Default MySQL port if not set
+#     }
+# }
+
+
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'  # Use SMTP to send emails
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
