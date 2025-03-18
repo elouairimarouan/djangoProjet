@@ -5,6 +5,7 @@ from django.utils import timezone
 
 
 
+
 class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=150, unique=True)
     email = models.EmailField(unique=True)
@@ -14,6 +15,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)  # Required for Django admin
+    profile_image = models.ImageField(upload_to='profile_images/',default='profile_images/default.png',null=True, blank=True)
+
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
@@ -49,4 +52,26 @@ class PasswordResetCode(models.Model):
 
     def __str__(self):
         return f"Reset code for {self.user.username} (expires at {self.expired_at})"
+    
+
+class Ticket(models.Model):
+    # Champs existants
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    status = models.CharField(
+        max_length=50, 
+        choices=[('ouvert', 'Ouvert'), 
+                 ('ferme', 'Fermé'), 
+                 ('en_cours', 'En cours')],default='ouvert')
+    name = models.CharField(max_length=100, blank=False, null=False)
+    service = models.CharField(max_length=100, blank=False, null=False)
+    description = models.TextField(blank=False, null=False)
+    personne_declarer = models.CharField(max_length=50, blank=False, null=False)
+
+    def __str__(self):
+        return f"Ticket {self.name} - {self.get_status_display()}"
+
+
+    
+
 

@@ -38,7 +38,7 @@ ALLOWED_HOSTS = [
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),  
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  
     'REFRESH_TOKEN_LIFETIME': timedelta(days=365),  
     'ROTATE_REFRESH_TOKENS': False,  
     'BLACKLIST_AFTER_ROTATION': False,  
@@ -148,16 +148,7 @@ DATABASES = {
 # import os
 
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': os.getenv('django'),  # Correct environment variable for DB name
-#         'USER': os.getenv('root'),      # Correct environment variable for DB username
-#         'PASSWORD': os.getenv(''),  # Correct environment variable for DB password
-#         'HOST': os.getenv('MYSQLHOST', 'localhost'),  # Correct environment variable for DB host
-#         'PORT': os.getenv('MYSQLPORT', '3306'),  # Default MySQL port if not set
-#     }
-# }
+
 
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'  # Use SMTP to send emails
@@ -167,8 +158,7 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'pcmarwan0128@gmail.com'  # Replace with your Gmail address
 EMAIL_HOST_PASSWORD = 'qacj xlle mvox xzwh'
 
-AUTH_USER_MODEL = 'apis.User'
-
+AUTH_USER_MODEL = 'apis.User'  
 
 
 
@@ -209,7 +199,11 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
+import os
+
 STATIC_URL = 'static/'
+MEDIA_URL = '/media/'  # URL for accessing media files
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
