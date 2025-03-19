@@ -14,7 +14,7 @@ from .views import (
 )
 
 urlpatterns = [
-    path('api/register/ ', RegisterView.as_view(), name='register_user'),
+    path('api/register/', RegisterView.as_view(), name='register_user'),
     path('api/login/', LoginView.as_view(), name='login'),
     path('api/protected-view/', ProtectedView.as_view(), name='protected_view'),  
     path('api/email-code/', PasswordResetView.as_view(), name='password_reset_request'),
