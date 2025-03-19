@@ -90,16 +90,10 @@ class LoginView(APIView):
             return Response({'error': "Adresse e-mail ou mot de passe incorrect."}, status=400)
 
         
-        # token = default_token_generator.make_token(user)
-
         refresh = RefreshToken.for_user(user)
-        # Add custom claims
         access_token = refresh.access_token
         access_token['role'] = user.role
         
-
-        # authtoken_token.objects.create(user=user, refresh_token=str(refresh))
-
 
         return Response({
             'message': "Connexion réussie !",
@@ -144,8 +138,6 @@ class PasswordResetView(APIView):
             expired_at=expired_at
         )
         
-        # refresh = RefreshToken.for_user(user)
-        # access_token = refresh.access_token
         subject = "Réinitialisation de votre mot de passe"
         message = (
             f"Bonjour {user.username},\n\n"
@@ -165,8 +157,7 @@ class PasswordResetView(APIView):
         return Response({'message': "Le code de réinitialisation a été envoyé."}, status=200)
     
 class PasswordConfirmationView(APIView):
-    # authentication_classes = [JWTAuthentication] 
-    # permission_classes = [IsAuthenticated]  
+
     def post(self, request):
         data = request.data
         code = data.get('code')
@@ -226,7 +217,8 @@ class PasswordConfirmationView(APIView):
     
     
 class TicketCreateView(APIView):
-    permission_classes = [IsAuthenticated] 
+    permission_classes = [IsAuthenticated]  # Ensure only authenticated users can access
+
     def post(self, request):
         data = request.data
         personne_declarer = data.get('personne_declarer')
@@ -242,51 +234,163 @@ class TicketCreateView(APIView):
             name=name,
             service=service,
             description=description,
+            created_by=request.user  
         )
 
         ticket.save()
 
         return Response({'message': 'Ticket créé avec succès.', 'ticket_id': ticket.id}, status=status.HTTP_201_CREATED)
     
-# class UpdateTicketView(APIView):
-#     permission_classes = [IsAuthenticated]
+class TicketListView(APIView):
+    permission_classes = [IsAuthenticated]  
+    def get(self, request):
+        user = request.user
+        print(vars(user))
 
-#     def patch(self, request, ticket_id):
-#         user = request.user  # Get the current authenticated user
-       
 
-#         # Check if the ticket belongs to the user (optional, but can be added for security)
-#         # if ticket.created_by != user:
-#         #     return Response({'error': 'Vous ne pouvez pas modifier ce ticket.'}, status=status.HTTP_403_FORBIDDEN)
+        if request.user.role == 1:
+            tickets = Ticket.objects.all().values("id", "personne_declarer", "name", "service", "description", "created_at", "created_by","status")
 
-#         # Get the data from the request
-#         data = request.data
-#         personne_declarer = data.get('personne_declarer')
-#         name = data.get('name')
-#         service = data.get('service')
-#         description = data.get('description')
+        else :
+            tickets = Ticket.objects.filter(created_by=request.user).values("id", "personne_declarer", "name", "service", "description", "created_at","created_by","status")
+            if not tickets:
+                return Response({"message": "No tickets found for this user."}, status=status.HTTP_404_NOT_FOUND)
+            
 
-#         # Validate the required fields
-#         if not personne_declarer or not name or not service or not description:
-#             return Response({'error': 'Tous les champs sont obligatoires.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    
+        return Response(list(tickets),status=status.HTTP_200_OK)  
+        
+    
 
-#         # Update the ticket fields
-#         if name:
-#             Ticket.name = name
-#         if service:
-#             Ticket.service = service
-#         if description:
-#             Ticket.description = description
-#         if personne_declarer:
-#             Ticket.personne_declarer = personne_declarer
+    
 
-#         try:
-#             # Save the updated ticket
-#             ticket.save()
-#             return Response({'message': 'Ticket mis à jour avec succès.', 'ticket_id': ticket.id}, status=status.HTTP_200_OK)
-#         except Exception as e:
-#             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+class UpdateTicketView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def put(self, request, ticket_id):
+        user = request.user 
+
+        try:
+            ticket = Ticket.objects.get(id=ticket_id)
+        except Ticket.DoesNotExist:
+            return Response({"error": "Ticket non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+
+        if ticket.created_by != user:
+            return Response({"error": "Permission refusée. Vous n'êtes pas autorisé à modifier ce ticket."}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        personne_declarer = data.get('personne_declarer')
+        name = data.get('name')
+        service = data.get('service')
+        description = data.get('description')
+
+        if not personne_declarer or not name or not service or not description:
+            return Response({'error': 'Tous les champs sont obligatoires.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if 'status' in data:
+            return Response({"error":"vous pouvez pas Modifier le status"},status=status.HTTP_403_FORBIDDEN)
+
+        ticket.personne_declarer = personne_declarer
+        ticket.name = name
+        ticket.service = service
+        ticket.description = description
+
+        try:
+            ticket.save()  
+            return Response({'message': 'Ticket mis à jour avec succès.', 'ticket_id': ticket.id}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+
+class UpdateTicketStatus(APIView):
+    permission_classes = [IsAuthenticated]  # Correction de la syntaxe
+
+    def patch(self, request, ticket_id):
+        user = request.user  # Correction ici
+
+        try:
+            ticket = Ticket.objects.get(id=ticket_id)
+        except Ticket.DoesNotExist:
+            return Response({"error": "Ticket non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+
+        if user.role != 1:
+            return Response({'error': "Permission refusée. vous pouvez pas modifier le status."},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        new_status = request.data.get('status')
+
+        # Vérification si le statut est valide
+        valid_status = dict(Ticket.STATUS_CHOICES).keys()
+        if new_status not in valid_status:
+            return Response({"error": f"Statut invalide. Choisissez parmi : {', '.join(valid_status)}"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        ticket.status = new_status
+        ticket.save()  
+
+        return Response({"message": "Statut modifié avec succès"}, status=status.HTTP_200_OK)
+
+class DeleteTicketView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self,request,ticket_id):
+        user = request.user
+
+        try:
+            ticket = Ticket.objects.get(id=ticket_id)
+        except Ticket.DoesNotExist:
+            return Response({"error": "Ticket non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+        
+        if user.role == 1:
+            ticket.delete()
+            return Response({"message": "Ticket supprimé avec succès"}, status=status.HTTP_200_OK)
+        
+        if ticket.created_by != user:
+            return Response({'error': "Permission refusée. Vous ne pouvez supprimer que vos propres tickets."},
+                            status=status.HTTP_403_FORBIDDEN,)
+        if ticket.status != 'ouvert':
+                return Response({"error":"Vous ne pouvez supprimer un ticket que s'il est encore ouvert."},
+                            status=status.HTTP_403_FORBIDDEN)
+        ticket.delete()
+        return Response({"message":"ticket supprimé avec succès"},status=status.HTTP_200_OK)
+    
+class TicketDetailsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self,request,ticket_id):
+        user = request.user
+
+        try :
+            ticket = Ticket.objects.get(id = ticket_id)
+        except Ticket.DoesNotExist:
+            return Response({"error": "Ticket non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+        
+        if user.role == 1 or ticket.created_by==user:
+            ticket_data = {
+            "id": ticket.id,
+            "name": ticket.name,
+            "service": ticket.service,
+            "description": ticket.description,
+            "status": ticket.status,
+            "created_at": ticket.created_at,
+            "updated_at": ticket.updated_at,
+            "personne_declarer": ticket.personne_declarer,
+            "created_by": ticket.created_by.username,  
+            }
+            return Response({"details":ticket_data}, status=status.HTTP_200_OK)
+        
+        return Response({'error': "Permission refusée. Vous ne pouvez voir que vos propres tickets."},
+                        status=status.HTTP_403_FORBIDDEN)
+        
+        
+
+
+
+
+            
+
+        
 
 
 

@@ -58,11 +58,18 @@ class Ticket(models.Model):
     # Champs existants
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    STATUS_CHOICES = [
+        ('ouvert', 'Ouvert'),
+        ('ferme', 'Fermé'),
+        ('en_cours', 'En cours')
+    ]
+
     status = models.CharField(
         max_length=50, 
-        choices=[('ouvert', 'Ouvert'), 
-                 ('ferme', 'Fermé'), 
-                 ('en_cours', 'En cours')],default='ouvert')
+        choices=STATUS_CHOICES,  # Utilisation de STATUS_CHOICES ici
+        default='ouvert'
+    )
     name = models.CharField(max_length=100, blank=False, null=False)
     service = models.CharField(max_length=100, blank=False, null=False)
     description = models.TextField(blank=False, null=False)
@@ -70,6 +77,8 @@ class Ticket(models.Model):
 
     def __str__(self):
         return f"Ticket {self.name} - {self.get_status_display()}"
+    
+
 
 
     
