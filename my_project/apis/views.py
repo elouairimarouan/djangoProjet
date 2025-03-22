@@ -18,6 +18,8 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from .models import Ticket
 from django.contrib.auth import authenticate
+from django.db.models import Q
+
 
 # from channels.layers import get_channel_layer
 
@@ -263,12 +265,26 @@ class TicketListView(APIView):
 
     def get(self, request):
         user = request.user
-        print(vars(user))
+        search_param = request.query_params.get('search', '').strip()  # Get the search parameter
 
+        try :
+            tickets = Ticket.objects.filter(is_deleted=False)
+        except tickets.DoesNotExist:
+            return Response({"message":"aucun ticket trouve"},status=status.HTTP_404_NOT_FOUND)
+        
+        if search_param:
+             tickets = tickets.filter(
+            Q(name__icontains=search_param) | 
+            Q(service__icontains=search_param) | 
+            Q(status__icontains=search_param) 
+            # Q(description_icontains=search_param)
+            )
+
+        
         if request.user.role == 1:  
-            tickets = Ticket.objects.filter(is_deleted=False).order_by('-created_at').values("id","name", "service", "description", "created_at", "ticket_owner","status")
+            tickets = tickets.order_by('-created_at').values("id","name", "service", "description", "created_at", "ticket_owner","status")
         else:  
-            tickets = Ticket.objects.filter(ticket_owner=request.user,is_deleted=False).order_by('-created_at').values("id", "name", "service", "description", "created_at", "ticket_owner", "status")
+            tickets = tickets.filter(ticket_owner=request.user).order_by('-created_at').values("id", "name", "service", "description", "created_at", "ticket_owner", "status")
             if not tickets:
                 return Response({"message": "No tickets found for this user."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -280,7 +296,7 @@ class UpdateTicketView(APIView):
     permission_classes = [IsAuthenticated]
 
     def put(self, request, ticket_id):
-        user = request.user 
+        user = request.user
 
         try:
             ticket = Ticket.objects.get(id=ticket_id)
