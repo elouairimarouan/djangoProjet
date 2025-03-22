@@ -28,27 +28,41 @@ SECRET_KEY = 'django-insecure-1=t#9xkchz#!jq_5$%8hm!ql@g#j=%%@x_i8p9h&h5nx@1!a1h
 DEBUG = True
 
 ALLOWED_HOSTS = [ 
-    'localhost',  # Allow localhost for local development
-    '127.0.0.1',  # Allow local IP for development
-    '64d7-102-96-105-182.ngrok-free.app',
-    '87e4-196-64-172-50.ngrok-free.app',
-    
+    'localhost',  
+    '127.0.0.1',  
+    "798b-196-116-88-202.ngrok-free.app"
 ]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173", 
+    "https://798b-196-116-88-202.ngrok-free.app"
+
+]
+
+CORS_ALLOW_HEADERS = [
+    'content-type',
+    'authorization',
+    'x-custom-header',
+    'ngrok-skip-browser-warning',
+
+]
+CORS_ALLOW_CREDENTIALS = True  
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "https://798b-196-116-88-202.ngrok-free.app"
+]
+
 
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=10),  
     'REFRESH_TOKEN_LIFETIME': timedelta(days=365),  
     'ROTATE_REFRESH_TOKENS': False,  
     'BLACKLIST_AFTER_ROTATION': False,  
     'AUTH_HEADER_TYPES': ('Bearer',),
-    'SIGNING_KEY': 'signing_key',  # Customize the signing key (default uses Django's SECRET_KEY)
-
+    'SIGNING_KEY': 'signing_key', 
 }
-
-
-# Application definition
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -62,6 +76,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken', 
     'rest_framework_simplejwt',
     'corsheaders',
+    'channels',
 ]
 
 REST_FRAMEWORK = {
@@ -69,11 +84,11 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',  # Only for views that require authentication
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        # Remove IsAuthenticated globally as it forces all views to require authentication
-        'rest_framework.permissions.AllowAny',  # This allows public access by default
+         'rest_framework.permissions.AllowAny',  # This allows public access by default
+        # 'rest_framework.permissions.IsAuthenticated',
+
     ],
 }
-
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -84,22 +99,17 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     # Remove or comment out CSRF middleware for API usage
-    # 'django.middleware.csrf.CsrfViewMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'corsheaders.middleware.CorsMiddleware', 
+
 ]
 
 
-# FRONTEND_URL = "http://localhost:3000"
+FRONTEND_URL = "http://localhost:5173/"
 
 
-CORS_ALLOW_ALL_ORIGINS = True  # Allow frontend requests (for development)
-
-CORS_ALLOW_HEADERS = [
-    'content-type',
-    'authorization',
-    'x-custom-header',
-]
-
-
+CORS_ALLOW_ALL_ORIGINS = True 
+APPEND_SLASH = False
 
 
 
@@ -121,18 +131,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'my_project.wsgi.application'
-
-
-# Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
+ASGI_APPLICATION = 'my_project.asgi.application'
 
 DATABASES = {
     'default': {
@@ -144,12 +143,6 @@ DATABASES = {
         'PORT': '3306',
     }
 }
-
-# import os
-
-
-
-
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'  # Use SMTP to send emails
 EMAIL_HOST = 'smtp.gmail.com'

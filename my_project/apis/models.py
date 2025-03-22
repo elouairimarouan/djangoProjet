@@ -7,38 +7,26 @@ from django.utils import timezone
 
 
 class User(AbstractBaseUser, PermissionsMixin):
-    username = models.CharField(max_length=150, unique=True)
+    first_name = models.CharField(max_length=255)
+    last_name = models.CharField(max_length=150)
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=255)
     role = models.IntegerField(default=0)
     date_joined = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)
-    is_staff = models.BooleanField(default=False)  # Required for Django admin
-    profile_image = models.ImageField(upload_to='profile_images/',default='profile_images/default.png',null=True, blank=True)
-
-
+    profile_image = models.URLField(
+        default="https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png",
+        null=True,
+        blank=True
+    )
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username']
-
-    def __str__(self):
-        return self.username
 
     def set_password(self, raw_password):
         self.password = make_password(raw_password)
 
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
-
-    # @classmethod
-    # def authenticate(cls, email, password):
-    #     try:
-    #         user = cls.objects.get(email=email)
-    #         if user.check_password(password):
-    #             return user
-    #         return None
-    #     except cls.DoesNotExist:
-    #         return None
         
         
 class PasswordResetCode(models.Model):
@@ -55,25 +43,39 @@ class PasswordResetCode(models.Model):
     
 
 class Ticket(models.Model):
-    # Champs existants
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     STATUS_CHOICES = [
-        ('ouvert', 'Ouvert'),
-        ('ferme', 'Fermé'),
-        ('en_cours', 'En cours')
+        ('en_attent', 'En attent'),
+        ('resolu', 'Résolu'),
+        ('en_cours', 'En cours'),
+        ('annuler', 'Annuler'),
+    ]
+
+    SERVICE_CHOICES = [
+        ('service1', 'service1'),
+        ('service2', 'service2'),
+        ('service3', 'service3')
     ]
 
     status = models.CharField(
         max_length=50, 
-        choices=STATUS_CHOICES,  # Utilisation de STATUS_CHOICES ici
-        default='ouvert'
+        choices=STATUS_CHOICES, 
+        default='en_attent'
     )
+    service = models.CharField(
+        null=True,
+        max_length=100,
+        choices=SERVICE_CHOICES
+    )
+
     name = models.CharField(max_length=100, blank=False, null=False)
-    service = models.CharField(max_length=100, blank=False, null=False)
     description = models.TextField(blank=False, null=False)
-    personne_declarer = models.CharField(max_length=50, blank=False, null=False)
+    is_deleted = models.BooleanField(default=False)
+    ticket_owner = models.ForeignKey(User, on_delete=models.CASCADE,related_name='assigned_tickets' 
+)
+
 
     def __str__(self):
         return f"Ticket {self.name} - {self.get_status_display()}"

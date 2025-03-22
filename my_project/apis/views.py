@@ -6,7 +6,6 @@ from django.core.mail import send_mail
 from django.conf import settings
 from .models import User,PasswordResetCode
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.authtoken.models import Token
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -17,55 +16,59 @@ from django.utils import timezone
 import random
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
-
-from django.utils.http import urlsafe_base64_encode
-from django.contrib.auth.tokens import default_token_generator
 from .models import Ticket
+from django.contrib.auth import authenticate
 
-
-
+# from channels.layers import get_channel_layer
 
 
 class RegisterView(APIView):
     def post(self, request):
         data = request.data  
 
-        username = data.get('username')
+        first_name = data.get('first_name')
+        last_name = data.get('last_name')
         email = data.get('email')
         password = data.get('password')
         password_ver = data.get('password_ver')
-        profile_image = request.FILES.get('profile_image')  # Get the profile image from the request
+        profile_image = request.FILES.get('profile_image')  
 
-
-        if not username:
-            return Response({'error': "Le nom d'utilisateur est obligatoire."}, status=400)
+        if not first_name:
+            return Response({"message": "Le prenom d'utilisateur est obligatoire."}, status=status.HTTP_400_BAD_REQUEST)
+        if not last_name:
+            return Response({"message": "Le nom d'utilisateur est obligatoire."}, status=status.HTTP_400_BAD_REQUEST)
         if not email:
-            return Response({'error': "L'adresse e-mail est obligatoire."}, status=400)
+            return Response({"message": "L'adresse e-mail est obligatoire."}, status=status.HTTP_400_BAD_REQUEST)
         if not password:
-            return Response({'error': "Le mot de passe est obligatoire."}, status=400)
+            return Response({"message": "Le mot de passe est obligatoire."}, status=status.HTTP_400_BAD_REQUEST)
         if not password_ver:
-            return Response({'error': "La confirmation du mot de passe est obligatoire."}, status=400)
+            return Response({"message": "La confirmation du mot de passe est obligatoire."}, status=status.HTTP_400_BAD_REQUEST)
         if password != password_ver:
-            return Response({'error': "Les mots de passe ne correspondent pas."}, status=400)
-        
-        try:
-            validate_email(email)  # Validate the email format
-        except ValidationError:
-            return Response({'error': "L'adresse e-mail n'est pas valide."}, status=400)
-        
-        if User.objects.filter(username=username).exists():
-            return Response({'error': "Le nom d'utilisateur est déjà pris."}, status=400)
-        if User.objects.filter(email=email).exists():
-            return Response({'error': "L'adresse e-mail est déjà enregistrée."}, status=400)
+            return Response({"message": "Les mots de passe ne correspondent pas."}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = User(username=username, email=email)
-        if profile_image:
-            user.profile_image = profile_image  
+        try:
+            validate_email(email)  
+        except ValidationError:
+            return Response({"message": "L'adresse e-mail n'est pas valide."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if User.objects.filter(email=email).exists():
+            return Response({"message": "L'adresse e-mail est déjà enregistrée."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User(
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            profile_image=profile_image
+        )
+ 
         user.set_password(password)  
         user.save()
-        return Response({'message': "Compte créé avec succès !"
-                         ,'role' : user.role,
-                         'profile_image_url': user.profile_image.url if user.profile_image else None
+        return Response({'success':True,
+                         'first_name':user.first_name,
+                         'first_name':user.last_name,
+                          'role' : user.role,
+                         'profile_image_url':user.profile_image if user.profile_image else None 
+
                          }, status=201)
 
 
@@ -74,38 +77,43 @@ class RegisterView(APIView):
 class LoginView(APIView):
     def post(self, request):
         data = request.data 
-
         email = data.get('email')
         password = data.get('password')
 
         if not email or not password:
-            return Response({'error': "L'adresse e-mail et le mot de passe sont obligatoires."}, status=400)
+            return Response({"message": "L'adresse e-mail et le mot de passe sont obligatoires."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(email=email)  
         except User.DoesNotExist:
-            return Response({'error': "Adresse e-mail ou mot de passe incorrect."}, status=400)
+            return Response({"message": "Adresse e-mail ou mot de passe incorrect."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not user.check_password(password):
-            return Response({'error': "Adresse e-mail ou mot de passe incorrect."}, status=400)
-
+        if not user.check_password(password):  
+            return Response({"message": "Adresse e-mail ou mot de passe incorrect."}, status=status.HTTP_400_BAD_REQUEST)
         
+        if not user.is_active:
+            return Response({"message":'Votre compte a été suspendu.'},status=403)
+     
         refresh = RefreshToken.for_user(user)
         access_token = refresh.access_token
         access_token['role'] = user.role
         
-
         return Response({
-            'message': "Connexion réussie !",
+            'success':True,
             'role':user.role,
-            'access_token': str(access_token),  # JWT access token
-            'refresh_token': str(refresh),  # Refresh token
+            'first_name':user.first_name,
+            'last_name':user.last_name,
+            'email':user.email,
+            "id":user.id,
+            'profile_image':user.profile_image,
+            'access_token': str(access_token),  
+            'refresh_token': str(refresh), 
         }, status=200)
 
 
 class ProtectedView(APIView):
-    authentication_classes = [JWTAuthentication]  # Use JWT authentication
-    permission_classes = [IsAuthenticated]  # Only authenticated users can access this view
+    authentication_classes = [JWTAuthentication]  
+    permission_classes = [IsAuthenticated]  
         
     def get(self, request):
         role = request.user.role
@@ -121,12 +129,12 @@ class PasswordResetView(APIView):
         email = data.get('email')
         
         if not email:
-            return Response({'error': "L'adresse e-mail est obligatoire."}, status=400)
+            return Response({"message": "L'adresse e-mail est obligatoire."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
-            return Response({'error': "Aucun utilisateur trouvé avec cet e-mail."}, status=404)
+            return Response({"message": "Aucun utilisateur trouvé avec cet e-mail."}, status=404)
 
         code = str(random.randint(100000, 999999))
 
@@ -140,7 +148,7 @@ class PasswordResetView(APIView):
         
         subject = "Réinitialisation de votre mot de passe"
         message = (
-            f"Bonjour {user.username},\n\n"
+            f"Bonjour {user.last_name} {user.first_name},\n\n"
             "Nous avons reçu une demande de réinitialisation de votre mot de passe. "
             f"Voici votre code de réinitialisation : {code}\n\n"
             "Ce code est valide pendant 10 minutes.\n\n"
@@ -148,16 +156,14 @@ class PasswordResetView(APIView):
         sender_email = settings.EMAIL_HOST_USER
         receiver = [user.email]
         
-
         try:
             send_mail(subject, message, sender_email, receiver, fail_silently=False)
         except Exception as e:
-            return Response({'error': "Erreur lors de l'envoi de l'e-mail.", 'details': str(e)}, status=500)
+            return Response({"message": "Erreur lors de l'envoi de l'e-mail.", 'details': str(e)}, status=500)
 
         return Response({'message': "Le code de réinitialisation a été envoyé."}, status=200)
     
 class PasswordConfirmationView(APIView):
-
     def post(self, request):
         data = request.data
         code = data.get('code')
@@ -165,105 +171,110 @@ class PasswordConfirmationView(APIView):
         confirm_password = request.data.get('confirm_password')
 
         if not code or not new_password or not confirm_password:
-            return Response({'error': 'tous les champs sont obligatoire.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": 'tous les champs sont obligatoire.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             reset_entry = PasswordResetCode.objects.get(code=code)
         except PasswordResetCode.DoesNotExist:
-            return Response({'error': "Code de réinitialisation invalide ou e-mail incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Code de réinitialisation invalide ou e-mail incorrect."}, status=status.HTTP_400_BAD_REQUEST)
 
         if reset_entry.is_expired():
-            return Response({'error': "Le code de réinitialisation a expiré."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if new_password != confirm_password:
-            return Response({'error': "Les mots de passe ne correspondent pas."}, status=400)
+            return Response({"message": "Le code de réinitialisation a expiré."}, status=status.HTTP_400_BAD_REQUEST)
+        reset_entry.delete()
 
-        
-        user = reset_entry.user  
-        
-        refresh = RefreshToken.for_user(user)
-        access_token = refresh.access_token
-        access_token['user_id'] = user.id
+        if new_password != confirm_password:
+            return Response({"message": "Les mots de passe ne correspondent pas."}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({'success':True,
                          'message': "Code valide.",
-                         "access_token":str(access_token),
-                         "refresh":str(refresh),
                         }, status=status.HTTP_200_OK)
 
-# class PasswordConfirmationView(APIView):
-    # authentication_classes = [JWTAuthentication] 
-    # permission_classes = [IsAuthenticated]  
-
-    # def post(self, request):
-    #     new_password = request.data.get('new_password')
-    #     confirm_password = request.data.get('confirm_password')
-
-    #     if not new_password or not confirm_password :
-    #         return Response({'error': "Tous les champs sont obligatoires."}, status=400)
-        
-    #     # Check if the passwords match
-    #     if new_password != confirm_password:
-    #         return Response({'error': "Les mots de passe ne correspondent pas."}, status=400)
-
-
-    #     user = request.user  
-
-    #     user.set_password(new_password)
-    #     user.save()
-
-
-    #     return Response({'success': "Mot de passe réinitialisé avec succès."}, status=200)
     
-    
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework import status
+from .models import Ticket, User
+
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework import status
+from .models import Ticket, User
+
 class TicketCreateView(APIView):
-    permission_classes = [IsAuthenticated]  # Ensure only authenticated users can access
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         data = request.data
-        personne_declarer = data.get('personne_declarer')
-        name = data.get('name')
-        service = data.get('service')
-        description = data.get('description')
 
-        if not personne_declarer or not name or not service or not description:
-            return Response({'error': 'Tous les champs sont obligatoires.'}, status=400)
+        if request.user.role == 0:  
+            name = data.get('name')
+            service = data.get('service')
+            description = data.get('description')
+            created_by = request.user
+            assigned_to = request.user  
+
+            if not all([name, service, description]):
+                return Response({'message': 'Tous les champs sont obligatoires.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            valid_service = list(dict(Ticket.SERVICE_CHOICES).keys())
+            if service not in valid_service:
+                return Response({"message": f"Service invalide. Choisissez parmi : {', '.join(valid_service)}"},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+        elif request.user.role == 1:  
+            name = data.get('name')
+            service = data.get('service')
+            description = data.get('description')
+            user_id = data.get('user_id') 
+
+            if not all([name, service, description, user_id]):
+                return Response({'message': 'Tous les champs sont obligatoires.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            valid_service = list(dict(Ticket.SERVICE_CHOICES).keys())
+            if service not in valid_service:
+                return Response({"message": f"Service invalide. Choisissez parmi : {', '.join(valid_service)}"},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                ticket_owner = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                return Response({"message": "Utilisateur non trouvé."}, status=status.HTTP_404_NOT_FOUND)
+
+            created_by = request.user  
+            assigned_to = ticket_owner  
 
         ticket = Ticket(
-            personne_declarer=personne_declarer,
             name=name,
             service=service,
             description=description,
-            created_by=request.user  
+            created_by=created_by,  
+            ticket_owner=assigned_to 
         )
 
         ticket.save()
 
         return Response({'message': 'Ticket créé avec succès.', 'ticket_id': ticket.id}, status=status.HTTP_201_CREATED)
+
     
 class TicketListView(APIView):
-    permission_classes = [IsAuthenticated]  
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         user = request.user
         print(vars(user))
 
-
-        if request.user.role == 1:
-            tickets = Ticket.objects.all().values("id", "personne_declarer", "name", "service", "description", "created_at", "created_by","status")
-
-        else :
-            tickets = Ticket.objects.filter(created_by=request.user).values("id", "personne_declarer", "name", "service", "description", "created_at","created_by","status")
+        if request.user.role == 1:  
+            tickets = Ticket.objects.filter(is_deleted=False).order_by('-created_at').values("id","name", "service", "description", "created_at", "ticket_owner","status")
+        else:  
+            tickets = Ticket.objects.filter(ticket_owner=request.user,is_deleted=False).order_by('-created_at').values("id", "name", "service", "description", "created_at", "ticket_owner", "status")
             if not tickets:
                 return Response({"message": "No tickets found for this user."}, status=status.HTTP_404_NOT_FOUND)
-            
 
-        
-    
-        return Response(list(tickets),status=status.HTTP_200_OK)  
-        
-    
+        tickets_list = list(tickets) 
 
-    
+        return Response({"count":len(tickets_list),"tickets":tickets_list}, status=status.HTTP_200_OK)
 
 class UpdateTicketView(APIView):
     permission_classes = [IsAuthenticated]
@@ -274,56 +285,58 @@ class UpdateTicketView(APIView):
         try:
             ticket = Ticket.objects.get(id=ticket_id)
         except Ticket.DoesNotExist:
-            return Response({"error": "Ticket non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'message': "Ticket non trouvé"}, status=status.HTTP_404_NOT_FOUND)
 
-        if ticket.created_by != user:
-            return Response({"error": "Permission refusée. Vous n'êtes pas autorisé à modifier ce ticket."}, status=status.HTTP_403_FORBIDDEN)
+        if ticket.ticket_owner != user:
+            return Response({'message': "Permission refusée. Vous n'êtes pas autorisé à modifier ce ticket."}, status=status.HTTP_403_FORBIDDEN)
 
         data = request.data
-        personne_declarer = data.get('personne_declarer')
         name = data.get('name')
         service = data.get('service')
         description = data.get('description')
+        status_value = data.get('status')
 
-        if not personne_declarer or not name or not service or not description:
-            return Response({'error': 'Tous les champs sont obligatoires.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not name or not service or not description or not status_value:
+            return Response({"message": 'Tous les champs sont obligatoires.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        if 'status' in data:
-            return Response({"error":"vous pouvez pas Modifier le status"},status=status.HTTP_403_FORBIDDEN)
+        
+        valid_service = dict(Ticket.SERVICE_CHOICES).keys()
+        if service not in valid_service:
+            return Response({'message': f"service invalide. Choisissez parmi : {', '.join(valid_service)}"},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-        ticket.personne_declarer = personne_declarer
         ticket.name = name
         ticket.service = service
         ticket.description = description
+        ticket.status = status_value
 
         try:
             ticket.save()  
             return Response({'message': 'Ticket mis à jour avec succès.', 'ticket_id': ticket.id}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
 
 class UpdateTicketStatus(APIView):
-    permission_classes = [IsAuthenticated]  # Correction de la syntaxe
+    permission_classes = [IsAuthenticated] 
 
     def patch(self, request, ticket_id):
-        user = request.user  # Correction ici
+        user = request.user  
 
         try:
             ticket = Ticket.objects.get(id=ticket_id)
         except Ticket.DoesNotExist:
-            return Response({"error": "Ticket non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'message': "Ticket non trouvé"}, status=status.HTTP_404_NOT_FOUND)
 
         if user.role != 1:
-            return Response({'error': "Permission refusée. vous pouvez pas modifier le status."},
+            return Response({"message": "Permission refusée. vous pouvez pas modifier le status."},
                             status=status.HTTP_403_FORBIDDEN)
 
         new_status = request.data.get('status')
 
-        # Vérification si le statut est valide
         valid_status = dict(Ticket.STATUS_CHOICES).keys()
         if new_status not in valid_status:
-            return Response({"error": f"Statut invalide. Choisissez parmi : {', '.join(valid_status)}"},
+            return Response({'message': f"Statut invalide. Choisissez parmi : {', '.join(valid_status)}"},
                             status=status.HTTP_400_BAD_REQUEST)
 
         ticket.status = new_status
@@ -334,26 +347,34 @@ class UpdateTicketStatus(APIView):
 class DeleteTicketView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def delete(self,request,ticket_id):
+    def delete(self, request, ticket_id):
         user = request.user
 
         try:
             ticket = Ticket.objects.get(id=ticket_id)
         except Ticket.DoesNotExist:
-            return Response({"error": "Ticket non trouvé"}, status=status.HTTP_404_NOT_FOUND)
-        
+            return Response({'message': "Ticket non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+
         if user.role == 1:
-            ticket.delete()
-            return Response({"message": "Ticket supprimé avec succès"}, status=status.HTTP_200_OK)
-        
-        if ticket.created_by != user:
-            return Response({'error': "Permission refusée. Vous ne pouvez supprimer que vos propres tickets."},
-                            status=status.HTTP_403_FORBIDDEN,)
-        if ticket.status != 'ouvert':
-                return Response({"error":"Vous ne pouvez supprimer un ticket que s'il est encore ouvert."},
+            if ticket.ticket_owner == user:
+                ticket.is_deleted = True  
+                ticket.save()
+                return Response({"message": "Votre ticket a été marqué comme supprimé"}, status=status.HTTP_200_OK)
+            else:
+                ticket.is_deleted = True
+                ticket.save()
+                return Response({"message": "Ticket marqué comme supprimé"}, status=status.HTTP_200_OK)
+
+        if ticket.ticket_owner != user:
+            return Response({"message": "Permission refusée. Vous ne pouvez supprimer que vos propres tickets."},
                             status=status.HTTP_403_FORBIDDEN)
-        ticket.delete()
-        return Response({"message":"ticket supprimé avec succès"},status=status.HTTP_200_OK)
+
+
+        ticket.is_deleted = True  
+        ticket.status = "Annuler"
+        ticket.save()
+        return Response({"message": "Ticket marqué comme supprimé"}, status=status.HTTP_200_OK)
+
     
 class TicketDetailsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -364,9 +385,9 @@ class TicketDetailsView(APIView):
         try :
             ticket = Ticket.objects.get(id = ticket_id)
         except Ticket.DoesNotExist:
-            return Response({"error": "Ticket non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'message': "Ticket non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         
-        if user.role == 1 or ticket.created_by==user:
+        if user.role == 1 or ticket.created_by == user:
             ticket_data = {
             "id": ticket.id,
             "name": ticket.name,
@@ -376,17 +397,47 @@ class TicketDetailsView(APIView):
             "created_at": ticket.created_at,
             "updated_at": ticket.updated_at,
             "personne_declarer": ticket.personne_declarer,
-            "created_by": ticket.created_by.username,  
+            "created_by": ticket.created_by.email,  
             }
             return Response({"details":ticket_data}, status=status.HTTP_200_OK)
         
-        return Response({'error': "Permission refusée. Vous ne pouvez voir que vos propres tickets."},
+        return Response({"message": "Permission refusée. Vous ne pouvez voir que vos propres tickets."},
                         status=status.HTTP_403_FORBIDDEN)
+    
+class UsersListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self,request):
+        user=request.user
+
+        if user.role == 1 :
+            users = User.objects.all().values('id','first_name')
+        else :
+            return Response({'message': "Permission refusée"},status=status.HTTP_403_FORBIDDEN)
+
+        users_list = list(users)
+
+        return Response({'users':users_list},status=status.HTTP_302_FOUND)
+    
+class CreateUser(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self,request):
+        if request.user.role == 1:
+            data = request.data
+            first_name = data.get('first_name')
+            last_name = data.get('last_name')
+            email = data.get('email')
+            password = data.get('password')
+            password_ver = data.get('password_ver')
+            profile_image = request.FILES.get('profile_image')
+
+            if not first_name or not last_name or not email or not password or not password_ver:
+                return Response({'message':"tous les champs sont obligatoires"},status=status.HTTP_400_BAD_REQUEST)
+            
+            user = User()
         
         
-
-
-
 
             
 
