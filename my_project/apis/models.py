@@ -75,8 +75,7 @@ class Ticket(models.Model):
     name = models.CharField(max_length=100, blank=False, null=False)
     description = models.TextField(blank=False, null=False)
     is_deleted = models.BooleanField(default=False)
-    ticket_owner = models.ForeignKey(User, on_delete=models.CASCADE,related_name='assigned_tickets' 
-)
+    ticket_owner = models.ForeignKey(User, on_delete=models.CASCADE,related_name='assigned_tickets' )
 
 
     def __str__(self):

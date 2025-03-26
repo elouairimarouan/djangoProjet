@@ -20,7 +20,8 @@ from .views import (
     CreateUser,
     ProfileView,
     ProfileImageView,
-    ProfileUpdate
+    ProfileUpdate,
+    StaticsView
 )
 
 urlpatterns = [
@@ -41,7 +42,7 @@ urlpatterns = [
     path('api/update-user/<int:user_id>/', UpdateUser.as_view(), name='update-user'),
     path('api/create-user/', CreateUser.as_view(), name='create-user'),
     path('api/profile-user/', ProfileView.as_view(), name='profile-user'),
-    path('api/profile-user/', ProfileView.as_view(), name='profile-user'),
+    path('api/statics/', StaticsView.as_view(), name='StaticView'),
     path('api/update-profile-image/<int:user_id>/', ProfileImageView.as_view(), name='update-profile-image'),
     path('api/update-profile/<int:user_id>/', ProfileUpdate.as_view(), name='update-profile'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),   

@@ -45,12 +45,12 @@ DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 ALLOWED_HOSTS = [ 
     'localhost',  
     '127.0.0.1',  
-    "3cdf-160-176-58-51.ngrok-free.app",
+    "a372-196-121-15-161.ngrok-free.app",
 ]
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173", 
-    "hhttps://3cdf-160-176-58-51.ngrok-free.app"
+    "https://a372-196-121-15-161.ngrok-free.app"
 ]
 
 CORS_ALLOW_HEADERS = [
@@ -64,7 +64,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
-    "https://3cdf-160-176-58-51.ngrok-free.app"
+    "https://a372-196-121-15-161.ngrok-free.app"
 ]
 
 

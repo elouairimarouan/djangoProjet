@@ -23,6 +23,13 @@ from rest_framework.exceptions import NotFound
 from cloudinary.uploader import upload,destroy
 from cloudinary.exceptions import Error as CloudinaryError
 
+from django.db.models import Count, Avg, F, ExpressionWrapper, DurationField
+from django.utils.timezone import now, timedelta
+from django.db.models.functions import TruncMonth
+
+
+
+
 class RegisterView(APIView):
     def post(self, request):
         data = request.data  
@@ -772,6 +779,29 @@ class ProfileUpdate(APIView) :
                 {"message": f"Erreur: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
+class StaticsView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self,request):
+        if request.user.role !=1 :
+            return Response({"message": "Accès refusé"},status=status.HTTP_403_FORBIDDEN)
+        
+        total_ticket = Ticket.objects.count()
+        ticket_by_status = Ticket.objects.values('status').annotate(count=Count('id'))
+        ticket_by_user = Ticket.objects.values('ticket_owner').annotate(count=Count('id'))
+
+        last_year_start = now() - timedelta(days=365)
+
+        tickets_per_month = Ticket.objects.filter(created_at__gte=last_year_start).annotate(month=TruncMonth('created_at')).values('month','status').annotate(count=Count('id'))
+
+
+
+        return Response({"total_ticket":total_ticket,
+                         "ticket_by_status":ticket_by_status,
+                         "ticket_by_user":ticket_by_user,
+                         "tickets_per_month":tickets_per_month
+                         },status=status.HTTP_200_OK)
+
 
 
 
