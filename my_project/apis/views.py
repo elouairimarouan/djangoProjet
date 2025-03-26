@@ -1,5 +1,4 @@
 from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 # from django.contrib.auth.hashers import check_password
 from django.core.mail import send_mail
@@ -7,7 +6,6 @@ from django.conf import settings
 from .models import User,PasswordResetCode
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import User
 from rest_framework import status
@@ -19,10 +17,11 @@ from django.core.exceptions import ValidationError
 from .models import Ticket
 from django.contrib.auth import authenticate
 from django.db.models import Q
-
-
-# from channels.layers import get_channel_layer
-
+from .models import Ticket, User
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.exceptions import NotFound
+from cloudinary.uploader import upload,destroy
+from cloudinary.exceptions import Error as CloudinaryError
 
 class RegisterView(APIView):
     def post(self, request):
@@ -35,6 +34,7 @@ class RegisterView(APIView):
         password_ver = data.get('password_ver')
         profile_image = request.FILES.get('profile_image')  
 
+        # Validate required fields
         if not first_name:
             return Response({"message": "Le prenom d'utilisateur est obligatoire."}, status=status.HTTP_400_BAD_REQUEST)
         if not last_name:
@@ -55,30 +55,39 @@ class RegisterView(APIView):
         
         if User.objects.filter(email=email).exists():
             return Response({"message": "L'adresse e-mail est déjà enregistrée."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Upload profile image to Cloudinary (if provided)
+        if profile_image:
+            try:
+                upload_result = upload(profile_image)  # Upload image to Cloudinary
+                profile_image_url = upload_result.get('secure_url')  # Get the URL of the uploaded image
+            except CloudinaryError as e:
+                return Response({"message": f"Erreur lors du téléchargement de l'image: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            # Default profile image URL
+            profile_image_url = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
 
+        # Create user object
         user = User(
             first_name=first_name,
             last_name=last_name,
             email=email,
-            profile_image=profile_image
+            profile_image=profile_image_url
         )
- 
         user.set_password(password)  
         user.save()
-        return Response({'success':True,
-                         'first_name':user.first_name,
-                         'first_name':user.last_name,
-                          'role' : user.role,
-                         'profile_image_url':user.profile_image if user.profile_image else None 
 
-                         }, status=201)
-
-
-
+        return Response({
+            'success': True,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'role': user.role,
+            'profile_image': user.profile_image
+        }, status=status.HTTP_201_CREATED)
 
 class LoginView(APIView):
     def post(self, request):
-        data = request.data 
+        data = request.data
         email = data.get('email')
         password = data.get('password')
 
@@ -86,32 +95,38 @@ class LoginView(APIView):
             return Response({"message": "L'adresse e-mail et le mot de passe sont obligatoires."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            user = User.objects.get(email=email)  
+            user = User.objects.get(email=email)
         except User.DoesNotExist:
-            return Response({"message": "Adresse e-mail ou mot de passe incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Adresse e-mail introuvable."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not user.check_password(password):  
-            return Response({"message": "Adresse e-mail ou mot de passe incorrect."}, status=status.HTTP_400_BAD_REQUEST)
-        
+        if not user.check_password(password):
+            return Response({"message": "Mot de passe incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if user.is_deleted:
+            return Response({"message": "Compte non trouvé"}, status=status.HTTP_403_FORBIDDEN)
+
         if not user.is_active:
-            return Response({"message":'Votre compte a été suspendu.'},status=403)
-     
+            return Response({"message": "Votre compte a été suspendu."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Extract profile image URL (if exists)
+        profile_image_url = user.profile_image.url if user.profile_image else None 
+
         refresh = RefreshToken.for_user(user)
         access_token = refresh.access_token
         access_token['role'] = user.role
-        
-        return Response({
-            'success':True,
-            'role':user.role,
-            'first_name':user.first_name,
-            'last_name':user.last_name,
-            'email':user.email,
-            "id":user.id,
-            'profile_image':user.profile_image,
-            'access_token': str(access_token),  
-            'refresh_token': str(refresh), 
-        }, status=200)
 
+        return Response({
+            'success': True,
+            'role': user.role,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'email': user.email,
+            "id": user.id,
+            "is_deleted": user.is_deleted,
+            'profile_image': profile_image_url,  # Return the profile image URL
+            'access_token': str(access_token),
+            'refresh_token': str(refresh),
+        }, status=status.HTTP_200_OK)
 
 class ProtectedView(APIView):
     authentication_classes = [JWTAuthentication]  
@@ -123,7 +138,6 @@ class ProtectedView(APIView):
             "message": "This is a protected view, you're authenticated!",
             "role": role
         })
-
 
 class PasswordResetView(APIView):
     def post(self, request):
@@ -190,20 +204,7 @@ class PasswordConfirmationView(APIView):
         return Response({'success':True,
                          'message': "Code valide.",
                         }, status=status.HTTP_200_OK)
-
-    
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework import status
-from .models import Ticket, User
-
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework import status
-from .models import Ticket, User
-
+  
 class TicketCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -229,7 +230,7 @@ class TicketCreateView(APIView):
             name = data.get('name')
             service = data.get('service')
             description = data.get('description')
-            user_id = data.get('user_id') 
+            user_id = data.get('assigned_to') 
 
             if not all([name, service, description, user_id]):
                 return Response({'message': 'Tous les champs sont obligatoires.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -259,39 +260,78 @@ class TicketCreateView(APIView):
 
         return Response({'message': 'Ticket créé avec succès.', 'ticket_id': ticket.id}, status=status.HTTP_201_CREATED)
 
-    
 class TicketListView(APIView):
     permission_classes = [IsAuthenticated]
 
+    class TicketPagination(PageNumberPagination):
+        page_size = 6  # Default number of tickets per page
+        page_size_query_param = 'page_size'  # The query parameter for page size
+        max_page_size = 50  # Maximum number of tickets per page
+
     def get(self, request):
         user = request.user
-        search_param = request.query_params.get('search', '').strip()  # Get the search parameter
+        search_param = request.GET.get('search_param', None)
+        search_status = request.GET.get('status', None)
+        search_service = request.GET.get('service', None)
 
-        try :
-            tickets = Ticket.objects.filter(is_deleted=False)
-        except tickets.DoesNotExist:
-            return Response({"message":"aucun ticket trouve"},status=status.HTTP_404_NOT_FOUND)
-        
+        tickets = Ticket.objects.filter(is_deleted=False)
+
+        # Apply filters based on search parameters
+        if search_status:
+            tickets = tickets.filter(status__icontains=search_status)
+
+        if search_service:
+            tickets = tickets.filter(service__icontains=search_service)
+
         if search_param:
-             tickets = tickets.filter(
-            Q(name__icontains=search_param) | 
-            Q(service__icontains=search_param) | 
-            Q(status__icontains=search_param) 
-            # Q(description_icontains=search_param)
+            tickets = tickets.filter(
+                Q(name__icontains=search_param) | 
+                Q(description__icontains=search_param)
             )
 
-        
-        if request.user.role == 1:  
-            tickets = tickets.order_by('-created_at').values("id","name", "service", "description", "created_at", "ticket_owner","status")
-        else:  
-            tickets = tickets.filter(ticket_owner=request.user).order_by('-created_at').values("id", "name", "service", "description", "created_at", "ticket_owner", "status")
-            if not tickets:
-                return Response({"message": "No tickets found for this user."}, status=status.HTTP_404_NOT_FOUND)
+        if user.role != 1:
+            tickets = tickets.filter(ticket_owner=user)
 
-        tickets_list = list(tickets) 
+        if search_status or search_service or search_param:
+            page_number = 1  # Reset to page 1 if filters are applied
+        else:
+            page_number = request.GET.get('page', 1)  # Default page is 1 if no filter is applied
 
-        return Response({"count":len(tickets_list),"tickets":tickets_list}, status=status.HTTP_200_OK)
 
+        paginator = self.TicketPagination()
+
+        # Paginate the filtered tickets and handle invalid page numbers
+        paginated_tickets = paginator.paginate_queryset(tickets.order_by('-created_at'), request, view=self)
+
+        if not paginated_tickets:
+            return Response({"message": "Aucun ticket trouvé sur cette page."}, status=status.HTTP_200_OK)
+
+        tickets_list = []
+        for ticket in paginated_tickets:
+            profile_image = ticket.ticket_owner.profile_image
+            profile_image_url = str(profile_image) if profile_image else None
+            ticket_owner_info = {
+                "id": ticket.ticket_owner.id,
+                "email": ticket.ticket_owner.email,
+                "first_name": ticket.ticket_owner.first_name,
+                "last_name": ticket.ticket_owner.last_name,
+                "date_joined": ticket.ticket_owner.date_joined,
+                "role": ticket.ticket_owner.role,
+                "profile_image": profile_image_url
+            }
+
+            tickets_list.append({
+                "id": ticket.id,
+                "name": ticket.name,
+                "service": ticket.service,
+                "description": ticket.description,
+                "created_at": ticket.created_at,
+                "status": ticket.status,
+                "ticket_owner": ticket_owner_info  
+            })
+
+        return paginator.get_paginated_response(tickets_list)
+    
 class UpdateTicketView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -302,10 +342,7 @@ class UpdateTicketView(APIView):
             ticket = Ticket.objects.get(id=ticket_id)
         except Ticket.DoesNotExist:
             return Response({'message': "Ticket non trouvé"}, status=status.HTTP_404_NOT_FOUND)
-
-        if ticket.ticket_owner != user:
-            return Response({'message': "Permission refusée. Vous n'êtes pas autorisé à modifier ce ticket."}, status=status.HTTP_403_FORBIDDEN)
-
+        
         data = request.data
         name = data.get('name')
         service = data.get('service')
@@ -314,13 +351,12 @@ class UpdateTicketView(APIView):
 
         if not name or not service or not description or not status_value:
             return Response({"message": 'Tous les champs sont obligatoires.'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        
+            
         valid_service = dict(Ticket.SERVICE_CHOICES).keys()
         if service not in valid_service:
             return Response({'message': f"service invalide. Choisissez parmi : {', '.join(valid_service)}"},
                             status=status.HTTP_400_BAD_REQUEST)
-
+        
         ticket.name = name
         ticket.service = service
         ticket.description = description
@@ -328,11 +364,10 @@ class UpdateTicketView(APIView):
 
         try:
             ticket.save()  
-            return Response({'message': 'Ticket mis à jour avec succès.', 'ticket_id': ticket.id}, status=status.HTTP_200_OK)
+            return Response({'message': 'Ticket mis à jour avec succès.', 'name': ticket.name,"service":ticket.service,"description":ticket.description,"status":ticket.status}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
-
 class UpdateTicketStatus(APIView):
     permission_classes = [IsAuthenticated] 
 
@@ -391,7 +426,6 @@ class DeleteTicketView(APIView):
         ticket.save()
         return Response({"message": "Ticket marqué comme supprimé"}, status=status.HTTP_200_OK)
 
-    
 class TicketDetailsView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -423,35 +457,328 @@ class TicketDetailsView(APIView):
 class UsersListView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self,request):
-        user=request.user
+    def get(self, request):
+        user = request.user
 
-        if user.role == 1 :
-            users = User.objects.all().values('id','first_name')
-        else :
-            return Response({'message': "Permission refusée"},status=status.HTTP_403_FORBIDDEN)
+        if user.role == 1:
+            users = User.objects.filter(is_deleted=False).values() .order_by('-date_joined')
+        else:
+            return Response({'message': "Permission refusée"}, status=status.HTTP_403_FORBIDDEN)
+        
+        
+        users_list = [
+            {
+                **user,
+                'profile_image': str(user['profile_image']) if user['profile_image'] else None
+            }
+            for user in users
+        ]
 
-        users_list = list(users)
-
-        return Response({'users':users_list},status=status.HTTP_302_FOUND)
+        return Response({'users': users_list}, status=status.HTTP_200_OK)
     
+class DeleteUser(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"message": "Aucun utilisateur trouvé"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Vérifier si l'utilisateur qui effectue la requête est un administrateur
+        if request.user.role != 1:
+            return Response({'message': "Accès refusé"}, status=status.HTTP_403_FORBIDDEN)
+        
+        if user.role == 1:
+            return Response({"message":"tu ne peut pas le droit de supprimer un admin"},status=status.HTTP_403_FORBIDDEN)
+
+        user.is_deleted = True
+        user.save()
+
+        return Response({"message": "Utilisateur supprimé avec supprimer"}, status=status.HTTP_200_OK)
+    
+class ToggleUserStatus(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self,request,user_id):
+
+        try :
+            user = User.objects.get(id=user_id)
+        except user.DoesNotExist:
+            return Response({"message":"utilisateur introuvable"},status=status.HTTP_404_NOT_FOUND)
+        
+        if request.user.role != 1:
+            return Response({"message": "Permission refusée"}, status=status.HTTP_403_FORBIDDEN)
+
+        user.is_active = not user.is_active
+        user.save()
+
+        message="Utilisateur activé" if user.is_active else "Utilisateur désactivé"
+        return Response({"message":message},status=status.HTTP_200_OK)
+
+class UpdateUser(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, user_id):
+        if request.user.role != 1:
+            return Response(
+                {"message": "Accès refusé, vous n'êtes pas administrateur."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response(
+                {"message": "Utilisateur non trouvé."}, 
+                status=status.HTTP_404_NOT_FOUND)
+        
+        data = request.data
+
+        if 'first_name' in data:
+            user.first_name = data['first_name']
+        if 'last_name' in data:
+            user.last_name = data['last_name']
+        if 'email' in data:
+            if data['email'] != user.email:
+                try:
+                    validate_email(data['email'])
+                    if User.objects.exclude(id=user.id).filter(email=data['email']).exists():
+                        return Response(
+                            {"message": "Cet email est déjà utilisé."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    user.email = data['email']
+                except ValidationError:
+                    return Response(
+                        {"message": "Email invalide."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+        if 'role' in data:
+            user.role = data['role']
+
+        # Handle password separately
+        if 'password' in data and data['password']:
+            user.set_password(data['password']) 
+
+        try:
+            user.save()
+            return Response({
+                'message': 'Utilisateur mis à jour avec succès.',
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'role': user.role,
+                    'profile_image': str(user.profile_image) if user.profile_image else None,
+                    'date_joined': user.date_joined,
+                    'last_login': user.last_login,
+                    'is_active': user.is_active,
+                }
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"message": f"Erreur: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
 class CreateUser(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self,request):
-        if request.user.role == 1:
-            data = request.data
-            first_name = data.get('first_name')
-            last_name = data.get('last_name')
-            email = data.get('email')
-            password = data.get('password')
-            password_ver = data.get('password_ver')
-            profile_image = request.FILES.get('profile_image')
+        if request.user.role != 1:
+            return Response({"message":"accesrefuser"},status=status.HTTP_403_FORBIDDEN)
+        
+        data = request.data
+        first_name = data.get('first_name')
+        last_name = data.get('last_name')
+        email = data.get('email')
+        password = data.get('password')
+        password_ver = data.get('password_ver')
+        profile_image = request.FILES.get('profile_image')
+        
+        if not first_name:
+            return Response({"message": "Le prenom d'utilisateur est obligatoire."}, status=status.HTTP_400_BAD_REQUEST)
+        if not last_name:
+            return Response({"message": "Le nom d'utilisateur est obligatoire."}, status=status.HTTP_400_BAD_REQUEST)
+        if not email:
+            return Response({"message": "L'adresse e-mail est obligatoire."}, status=status.HTTP_400_BAD_REQUEST)
+        if not password:
+            return Response({"message": "Le mot de passe est obligatoire."}, status=status.HTTP_400_BAD_REQUEST)
+        if not password_ver:
+            return Response({"message": "La confirmation du mot de passe est obligatoire."}, status=status.HTTP_400_BAD_REQUEST)
+        if password != password_ver:
+            return Response({"message": "Les mots de passe ne correspondent pas."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try :
+            validate_email(email)
+        except ValidationError :
+            return Response({"message": "L'adresse e-mail n'est pas valide."},status=status.HTTP_400_BAD_REQUEST)
+        
+        if User.objects.filter(email=email).exists():
+            return Response({"message": "L'adresse e-mail est déjà enregistrée."},status=status.HTTP_400_BAD_REQUEST)
+        
+        if profile_image:
+            try:
+                upload_result = upload(profile_image)
+                profile_image_url = upload_result.get('secure_url')  # Ensure this is a string
+            except CloudinaryError as e:
+                return Response({"message": f"Error uploading image: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            profile_image_url = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
 
-            if not first_name or not last_name or not email or not password or not password_ver:
-                return Response({'message':"tous les champs sont obligatoires"},status=status.HTTP_400_BAD_REQUEST)
+        # Create and save the user
+        user = User(
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            profile_image=profile_image_url  # Ensure this is stored as a string
+        )
+        user.set_password(password)
+        user.save()
+
+        # Fetch all users sorted by `date_joined` (newest first)
+        sorted_users = User.objects.all().order_by('-date_joined')
+        users_data = []
+
+
+        profile_image_url = str(user.profile_image) if user.profile_image else None
+
+
             
-            user = User()
+
+        return Response(        {
+            'id': user.id,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'email': user.email,
+            'role': user.role,
+            'date_joined': user.date_joined,
+            'profile_image': str(user.profile_image) if user.profile_image else None
+        }, status=status.HTTP_201_CREATED)
+    
+class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self,request):
+
+        user =request.user 
+        return Response({
+        'id': user.id,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'email': user.email,
+        'role': user.role,
+        'date_joined': user.date_joined,
+        'profile_image': str(user.profile_image) if user.profile_image else None},status=status.HTTP_200_OK)
+    
+class ProfileImageView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request,user_id):
+        user = request.user
+
+        if request.user.id != user_id and not request.user == 1:
+            return Response(
+                {"message": "You do not have permission to update this profile image"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            user = User.objects.get(id = user_id)
+        except User.DoesNotExist:
+            return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # if not request.FILES.get('profile_image'):
+        #     return Response(
+        #         {"message": "No image provided"}, 
+        #         status=status.HTTP_400_BAD_REQUEST
+        #     )
+
+        if user.profile_image:
+            try:
+                if 'res.cloudinary.com' in str(user.profile_image):
+                    public_id = str(user.profile_image).split('/')[-1].split('.')[0]
+                    destroy(public_id)
+            except Exception as e:
+                print(f"Error supprission old image: {str(e)}")
+
+        try:
+            upload_result = upload(request.FILES['profile_image'])
+            user.profile_image = upload_result['secure_url']
+            user.save()
+
+            return Response({
+                'profile_image': user.profile_image,
+                'message': 'Profile image updated successfully',
+                'user_id':user.id
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response({"message": f"Image upload failed: {str(e)}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+        
+class ProfileUpdate(APIView) :
+    permission_classes = [IsAuthenticated]
+
+    def put(self,request,user_id):
+        
+        if request.user.id != user_id:
+            return Response({"message": "tu pas le droit de moddifer le profile"},status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"message": "Utilisateur non trouvé."}, status=status.HTTP_404_NOT_FOUND)
+        
+        data = request.data
+
+        if 'first_name' in data:
+            user.first_name = data['first_name']
+        if 'last_name' in data:
+            user.last_name = data['last_name']
+        if 'email' in data:
+            if data['email'] != user.email:
+                try:
+                    validate_email(data['email'])
+                    if User.objects.exclude(id=user.id).filter(email=data['email']).exists():
+                        return Response({"message": "Cet email est déjà utilisé."},status=status.HTTP_400_BAD_REQUEST)
+                    user.email = data['email']
+                except ValidationError:
+                    return Response({"message": "Email invalide."},status=status.HTTP_400_BAD_REQUEST)
+
+        if 'password' in data and data['password']:
+            user.set_password(data['password']) 
+
+        try:
+            user.save()
+            return Response({
+                'message': 'profile mis à jour avec succès.',
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'role': user.role,
+                    'profile_image': str(user.profile_image) if user.profile_image else None,
+                    'date_joined': user.date_joined,
+                    'last_login': user.last_login,
+                    'is_active': user.is_active,
+                }
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response(
+                {"message": f"Erreur: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+
+    
+
+
+            
         
         
 

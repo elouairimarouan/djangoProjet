@@ -2,6 +2,8 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.contrib.auth.hashers import make_password, check_password
 from django.utils import timezone
+from cloudinary.models import CloudinaryField
+
 
 
 
@@ -13,13 +15,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     password = models.CharField(max_length=255)
     role = models.IntegerField(default=0)
     date_joined = models.DateTimeField(auto_now_add=True)
+    last_login = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)
-    profile_image = models.URLField(
-        default="https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png",
-        null=True,
-        blank=True
-    )
+    is_deleted = models.BooleanField(default=False)
+
+    profile_image = CloudinaryField('profile_image', null=True, blank=True)
+
     USERNAME_FIELD = 'email'
 
     def set_password(self, raw_password):

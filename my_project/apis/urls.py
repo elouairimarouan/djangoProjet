@@ -13,7 +13,14 @@ from .views import (
     UpdateTicketStatus,
     DeleteTicketView,
     TicketDetailsView,
-    UsersListView
+    UsersListView,
+    DeleteUser,
+    ToggleUserStatus,
+    UpdateUser,
+    CreateUser,
+    ProfileView,
+    ProfileImageView,
+    ProfileUpdate
 )
 
 urlpatterns = [
@@ -29,10 +36,13 @@ urlpatterns = [
     path('api/delete-ticket/<int:ticket_id>/', DeleteTicketView.as_view(), name='delete-ticket'),
     path('api/details-ticket/<int:ticket_id>/', TicketDetailsView.as_view(), name='details-ticket'),
     path('api/users-list/', UsersListView.as_view(), name='users-list'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-
-    
-    # Uncomment if you have these views
-    # path('api/logout/', LogoutView.as_view(), name='logout'),
-    # path('api/hello/', hello, name='hello'),
+    path('api/delete-user/<int:user_id>/', DeleteUser.as_view(), name='users-list'),
+    path('api/change-account-status/<int:user_id>/', ToggleUserStatus.as_view(), name='users-list'),
+    path('api/update-user/<int:user_id>/', UpdateUser.as_view(), name='update-user'),
+    path('api/create-user/', CreateUser.as_view(), name='create-user'),
+    path('api/profile-user/', ProfileView.as_view(), name='profile-user'),
+    path('api/profile-user/', ProfileView.as_view(), name='profile-user'),
+    path('api/update-profile-image/<int:user_id>/', ProfileImageView.as_view(), name='update-profile-image'),
+    path('api/update-profile/<int:user_id>/', ProfileUpdate.as_view(), name='update-profile'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),   
 ]

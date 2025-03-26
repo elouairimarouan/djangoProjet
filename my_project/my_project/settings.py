@@ -14,6 +14,10 @@ from pathlib import Path
 import pymysql
 pymysql.install_as_MySQLdb()
 
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -27,15 +31,26 @@ SECRET_KEY = 'django-insecure-1=t#9xkchz#!jq_5$%8hm!ql@g#j=%%@x_i8p9h&h5nx@1!a1h
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+import os
+
+cloudinary.config(
+    cloud_name='dvq9wue5g',  # Your Cloudinary cloud name
+    api_key='584599663442754',        # Your Cloudinary API key
+    api_secret='0YdznjimfTPhdjVuOnQCu4CYMO4',  # Your Cloudinary API secret
+    secure=True
+)
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+
 ALLOWED_HOSTS = [ 
     'localhost',  
     '127.0.0.1',  
-    "798b-196-116-88-202.ngrok-free.app"
+    "3cdf-160-176-58-51.ngrok-free.app",
 ]
+
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173", 
-    "https://798b-196-116-88-202.ngrok-free.app"
-
+    "hhttps://3cdf-160-176-58-51.ngrok-free.app"
 ]
 
 CORS_ALLOW_HEADERS = [
@@ -43,20 +58,20 @@ CORS_ALLOW_HEADERS = [
     'authorization',
     'x-custom-header',
     'ngrok-skip-browser-warning',
-
 ]
+
 CORS_ALLOW_CREDENTIALS = True  
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
-    "https://798b-196-116-88-202.ngrok-free.app"
+    "https://3cdf-160-176-58-51.ngrok-free.app"
 ]
 
 
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=10),  
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  
     'REFRESH_TOKEN_LIFETIME': timedelta(days=365),  
     'ROTATE_REFRESH_TOKENS': False,  
     'BLACKLIST_AFTER_ROTATION': False,  
@@ -77,6 +92,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',
     'channels',
+    'cloudinary_storage',
+    'cloudinary'
 ]
 
 REST_FRAMEWORK = {
@@ -88,6 +105,8 @@ REST_FRAMEWORK = {
         # 'rest_framework.permissions.IsAuthenticated',
 
     ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 6  # Adjust the page size as needed
 }
 
 MIDDLEWARE = [
