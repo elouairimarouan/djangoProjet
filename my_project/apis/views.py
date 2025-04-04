@@ -157,7 +157,7 @@ class PasswordResetView(APIView):
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
-            return Response({"message": "Aucun utilisateur trouvé avec cet e-mail."}, status=404)
+            return Response({"message": "Aucun utilisateur trouvé avec cet e-mail."},status=status.HTTP_400_BAD_REQUEST)
 
         code = str(random.randint(100000, 999999))
 
@@ -193,6 +193,7 @@ class PasswordConfirmationView(APIView):
         new_password = request.data.get('new_password')
         confirm_password = request.data.get('confirm_password')
 
+
         if not code or not new_password or not confirm_password:
             return Response({"message": 'tous les champs sont obligatoire.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -207,7 +208,11 @@ class PasswordConfirmationView(APIView):
 
         if new_password != confirm_password:
             return Response({"message": "Les mots de passe ne correspondent pas."}, status=status.HTTP_400_BAD_REQUEST)
-
+        
+        user = reset_entry.user
+        user.set_password(new_password)
+        user.save()
+        
         return Response({'success':True,
                          'message': "Code valide.",
                         }, status=status.HTTP_200_OK)
@@ -812,7 +817,7 @@ class StaticsView(APIView):
                          "ticket_by_user":ticket_by_user,
                          "tickets_per_month":tickets_per_month
                          },status=status.HTTP_200_OK)
-    
+
 
 class NotificationsView(APIView):
     permission_classes = [IsAuthenticated]
