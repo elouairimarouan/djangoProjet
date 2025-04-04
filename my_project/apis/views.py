@@ -17,7 +17,7 @@ from django.core.exceptions import ValidationError
 from .models import Ticket
 from django.contrib.auth import authenticate
 from django.db.models import Q
-from .models import Ticket, User
+from .models import Ticket, User,Notification
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import NotFound
 from cloudinary.uploader import upload,destroy
@@ -182,9 +182,9 @@ class PasswordResetView(APIView):
         try:
             send_mail(subject, message, sender_email, receiver, fail_silently=False)
         except Exception as e:
-            return Response({"message": "Erreur lors de l'envoi de l'e-mail.", 'details': str(e)}, status=500)
+            return Response({'success':False,"message": "Erreur lors de l'envoi de l'e-mail.", 'details': str(e)}, status=500)
 
-        return Response({'message': "Le code de réinitialisation a été envoyé."}, status=200)
+        return Response({'success':True,'message': "Le code de réinitialisation a été envoyé."}, status=200)
     
 class PasswordConfirmationView(APIView):
     def post(self, request):
@@ -355,6 +355,7 @@ class UpdateTicketView(APIView):
         service = data.get('service')
         description = data.get('description')
         status_value = data.get('status')
+        old_status = ticket.status
 
         if not name or not service or not description or not status_value:
             return Response({"message": 'Tous les champs sont obligatoires.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -370,7 +371,19 @@ class UpdateTicketView(APIView):
         ticket.status = status_value
 
         try:
-            ticket.save()  
+            ticket.save()
+            if old_status != status_value:
+                Notification.objects.create(
+                    user=ticket.ticket_owner,
+                    ticket=ticket,
+                    message=f"le status de votre tikcket a changé de {old_status} à {status_value}"
+                )  
+                if status_value == 'resolu':
+                    subject = f"Votre ticket #{ticket.id} a été résolu"
+                    message = f"Bonjour {ticket.ticket_owner.last_name}, Nous vous informons que votre ticket #{ticket.id} a été marqué comme résolu."
+                    sender_email = settings.EMAIL_HOST_USER
+                    receiver = [ticket.ticket_owner.email]
+                    send_mail(subject,message,sender_email,receiver, fail_silently=False)
             return Response({'message': 'Ticket mis à jour avec succès.', 'name': ticket.name,"service":ticket.service,"description":ticket.description,"status":ticket.status}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -794,13 +807,48 @@ class StaticsView(APIView):
 
         tickets_per_month = Ticket.objects.filter(created_at__gte=last_year_start).annotate(month=TruncMonth('created_at')).values('month','status').annotate(count=Count('id'))
 
-
-
         return Response({"total_ticket":total_ticket,
                          "ticket_by_status":ticket_by_status,
                          "ticket_by_user":ticket_by_user,
                          "tickets_per_month":tickets_per_month
                          },status=status.HTTP_200_OK)
+    
+
+class NotificationsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self,request):
+        notifications = Notification.objects.filter(user = request.user,is_read=False).order_by('-created_at')
+        notifications_data = []
+        for notification in notifications:
+            notifications_data.append({
+                'id': notification.id,
+                'ticket_id': notification.ticket.id,
+                'message': notification.message,
+                'is_read': notification.is_read,
+                'created_at': notification.created_at
+            })
+        
+        return Response({'notifications': notifications_data}, status=status.HTTP_200_OK)
+    
+class MarkNotificationsAsRead(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self,request,notification_id):
+        try:
+            notification = Notification.objects.get(id = notification_id,user=request.user)
+            notification.is_read = True
+            notification.save()
+            return Response({'message':'success'},status=status.HTTP_200_OK)
+        except Notification.DoesNotExist:
+            return Response({'message':'Notification non trouve'},status=status.HTTP_404_NOT_FOUND)
+        
+class UnreadNotificationsCount(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self,request):
+        count = Notification.objects.filter(is_read = False,user = request.user).count()
+        return Response({'count':count},status=status.HTTP_200_OK)
+
 
 
 

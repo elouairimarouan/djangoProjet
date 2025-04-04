@@ -21,15 +21,18 @@ from .views import (
     ProfileView,
     ProfileImageView,
     ProfileUpdate,
-    StaticsView
+    StaticsView,
+    NotificationsView,
+    MarkNotificationsAsRead,
+    UnreadNotificationsCount
 )
 
 urlpatterns = [
     path('api/register/', RegisterView.as_view(), name='register_user'),
     path('api/login/', LoginView.as_view(), name='login'),
     path('api/protected-view/', ProtectedView.as_view(), name='protected_view'),  
-    path('api/email-code/', PasswordResetView.as_view(), name='password_reset_request'),
-    path('api/update-password/', PasswordConfirmationView.as_view(), name='confirm_password'),
+    path('api/forgot-password/', PasswordResetView.as_view(), name='password_reset_request'),
+    path('api/reset-password/', PasswordConfirmationView.as_view(), name='confirm_password'),
     path('api/create-ticket/', TicketCreateView.as_view(), name='create_ticket'),
     path('api/tickets/', TicketListView.as_view(), name='my-tickets'),
     path('api/update-ticket/<int:ticket_id>/', UpdateTicketView.as_view(), name='update_ticket'),
@@ -42,7 +45,10 @@ urlpatterns = [
     path('api/update-user/<int:user_id>/', UpdateUser.as_view(), name='update-user'),
     path('api/create-user/', CreateUser.as_view(), name='create-user'),
     path('api/profile-user/', ProfileView.as_view(), name='profile-user'),
-    path('api/statics/', StaticsView.as_view(), name='StaticView'),
+    path('api/statistics/', StaticsView.as_view(), name='StaticView'),
+    path('api/notifications/', NotificationsView.as_view(), name='notifications'),
+    # path('api/notifications/<int:notification_id>/read/', MarkNotificationsAsRead.as_view(), name='mark-notification-read'),
+    path('api/notifications/<int:notification_id>/read/', MarkNotificationsAsRead.as_view(), name='mark-notification-read'),
     path('api/update-profile-image/<int:user_id>/', ProfileImageView.as_view(), name='update-profile-image'),
     path('api/update-profile/<int:user_id>/', ProfileUpdate.as_view(), name='update-profile'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),   

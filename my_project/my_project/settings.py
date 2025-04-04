@@ -45,12 +45,12 @@ DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 ALLOWED_HOSTS = [ 
     'localhost',  
     '127.0.0.1',  
-    "a372-196-121-15-161.ngrok-free.app",
+    "4845-105-158-105-102.ngrok-free.app",
 ]
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173", 
-    "https://a372-196-121-15-161.ngrok-free.app"
+    "https://4845-105-158-105-102.ngrok-free.app"
 ]
 
 CORS_ALLOW_HEADERS = [
@@ -64,7 +64,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
-    "https://a372-196-121-15-161.ngrok-free.app"
+    "https://4845-105-158-105-102.ngrok-free.app"
 ]
 
 
@@ -155,7 +155,7 @@ ASGI_APPLICATION = 'my_project.asgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'django',
+        'NAME': 'dbdjango',
         'USER': 'root',
         'PASSWORD': '',
         'HOST': 'localhost',

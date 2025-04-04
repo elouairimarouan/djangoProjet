@@ -20,7 +20,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_verified = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
 
-    profile_image = CloudinaryField('profile_image', null=True, blank=True)
+    profile_image = CloudinaryField('profile_image', null=True, blank=True,default='https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png')
 
     USERNAME_FIELD = 'email'
 
@@ -80,6 +80,14 @@ class Ticket(models.Model):
 
     def __str__(self):
         return f"Ticket {self.name} - {self.get_status_display()}"
+    
+class Notification(models.Model):
+    user=models.ForeignKey(User,on_delete=models.CASCADE)
+    ticket=models.ForeignKey(Ticket,on_delete=models.CASCADE)
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+
+    created_at=models.DateTimeField(auto_now_add=True)
     
 
 
